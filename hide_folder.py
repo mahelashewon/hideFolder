@@ -209,6 +209,11 @@ class MainWindow(QMainWindow):
         self._build_unhide_page()
         self.stack.addWidget(self.unhide_page)
 
+        # Page 3 — re-hide: enter pin
+        self.rehide_page = QWidget()
+        self._build_rehide_page()
+        self.stack.addWidget(self.rehide_page)
+
         self.stack.setCurrentIndex(0)
         self._refresh_list()
 
@@ -228,11 +233,15 @@ class MainWindow(QMainWindow):
         unhide_btn.setObjectName("success")
         unhide_btn.clicked.connect(self._start_unhide)
 
+        rehide_btn = QPushButton("🔒  Hide Selected")
+        rehide_btn.setObjectName("primary")
+        rehide_btn.clicked.connect(self._start_rehide)
+
         remove_btn = QPushButton("🗑  Remove Entry")
         remove_btn.setObjectName("danger")
         remove_btn.clicked.connect(self._remove_entry)
 
-        for b in (hide_btn, unhide_btn, remove_btn):
+        for b in (hide_btn, unhide_btn, rehide_btn, remove_btn):
             btn_row.addWidget(b)
         layout.addLayout(btn_row)
 
@@ -354,6 +363,44 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
 
+    def _build_rehide_page(self):
+        layout = QVBoxLayout(self.rehide_page)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        card = QFrame()
+        card.setObjectName("card")
+        card.setMaximumWidth(400)
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(24, 24, 24, 24)
+        c_layout.setSpacing(14)
+
+        self.rehide_path_lbl = QLabel("")
+        self.rehide_path_lbl.setObjectName("subtitle")
+        self.rehide_path_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.rehide_path_lbl.setWordWrap(True)
+        c_layout.addWidget(self.rehide_path_lbl)
+
+        self.rehide_pin_input = QLineEdit()
+        self.rehide_pin_input.setPlaceholderText("Enter PIN / Password")
+        self.rehide_pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.rehide_pin_input.returnPressed.connect(self._do_rehide)
+        c_layout.addWidget(self.rehide_pin_input)
+
+        btn_row = QHBoxLayout()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("secondary")
+        cancel_btn.clicked.connect(self._back_to_list)
+
+        confirm_btn = QPushButton("🔒  Hide Again")
+        confirm_btn.setObjectName("primary")
+        confirm_btn.clicked.connect(self._do_rehide)
+
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(confirm_btn)
+        c_layout.addLayout(btn_row)
+
+        layout.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
+
     # ── Helpers ────────────────────────────────────────────────────────────
 
     def _refresh_list(self):
@@ -367,6 +414,7 @@ class MainWindow(QMainWindow):
         self.new_pin_input.clear()
         self.confirm_pin_input.clear()
         self.unhide_pin_input.clear()
+        self.rehide_pin_input.clear()
         self.folder_path_lbl.setText("No folder selected")
         self._selected_folder = ""
         self.stack.setCurrentIndex(0)
@@ -434,6 +482,36 @@ class MainWindow(QMainWindow):
         self._refresh_list()
         self._back_to_list()
         QMessageBox.information(self, "Done", f"Folder is now visible!\n\n{path}")
+
+    def _start_rehide(self):
+        item = self.folder_list.currentItem()
+        if not item:
+            QMessageBox.warning(self, "No Selection", "Select a folder from the list first.")
+            return
+        path = item.text().split("   ", 1)[1]
+        if self.data.get(path, {}).get("hidden"):
+            QMessageBox.information(self, "Already Hidden", "This folder is already hidden.")
+            return
+        self._rehide_target = path
+        self.rehide_path_lbl.setText(f"Re-hide: {path}")
+        self.rehide_pin_input.clear()
+        self.stack.setCurrentIndex(3)
+
+    def _do_rehide(self):
+        pin = self.rehide_pin_input.text().strip()
+        if not pin:
+            return
+        path = self._rehide_target
+        if hash_pin(pin) != self.data[path]["pin"]:
+            QMessageBox.warning(self, "Wrong PIN", "Incorrect PIN. Try again.")
+            self.rehide_pin_input.clear()
+            return
+        set_folder_hidden(path, True)
+        self.data[path]["hidden"] = True
+        save_data(self.data)
+        self._refresh_list()
+        self._back_to_list()
+        QMessageBox.information(self, "Done", f"Folder is hidden again!\n\n{path}")
 
     def _remove_entry(self):
         item = self.folder_list.currentItem()
