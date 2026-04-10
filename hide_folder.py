@@ -518,12 +518,19 @@ class MainWindow(QMainWindow):
         if not item:
             QMessageBox.warning(self, "No Selection", "Select an entry to remove.")
             return
-        text = item.text()
-        path = text.split("   ", 1)[1]
+        path = item.text().split("   ", 1)[1]
+        if self.data.get(path, {}).get("hidden"):
+            QMessageBox.warning(
+                self, "⚠️ Folder Still Hidden",
+                f"This folder is currently hidden on disk:\n\n{path}\n\n"
+                "Removing it from the list will make it impossible to unhide through this app, "
+                "and the folder may appear permanently lost.\n\n"
+                "Please unhide the folder first, then remove the entry."
+            )
+            return
         reply = QMessageBox.question(
             self, "Remove Entry",
-            f"Remove this entry from the list?\n\n{path}\n\n"
-            "Note: if the folder is still hidden, it will remain hidden on disk.",
+            f"Remove this entry from the list?\n\n{path}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
